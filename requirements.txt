@@ -1,0 +1,11 @@
+# Python packages used by eog_arm_sim.py / generate_world.py
+#
+# NOTE: the simulation also needs ROS 2 Jazzy (rclpy), Gazebo Harmonic and ros_gz_bridge.
+# Those are NOT pip packages - install them with ./setup_ubuntu.sh (Ubuntu 24.04 / WSL2).
+# On Ubuntu the easiest way to get the packages below is apt (done by setup_ubuntu.sh):
+#   sudo apt install python3-numpy python3-scipy python3-matplotlib python3-tk
+# If you prefer pip, use a venv created with --system-site-packages so rclpy stays visible:
+#   python3 -m venv --system-site-packages .venv && . .venv/bin/activate && pip install -r requirements.txt
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.6

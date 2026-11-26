@@ -3,15 +3,39 @@
 # Usage:  ./run_demo.sh [--mode robust|naive] [--speed 1.0] [--seed 7] [--headless]
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$HERE"
+
+# ---- pre-flight checks: fail early with a clear message instead of a cryptic error ----------
+die() { echo "ERROR: $1" >&2; echo "       See README.md (Setup) or run ./setup_ubuntu.sh" >&2; exit 1; }
+
+[[ -f /opt/ros/jazzy/setup.bash ]] || die "ROS 2 Jazzy not found at /opt/ros/jazzy (this project needs Ubuntu 24.04 + ROS 2 Jazzy)."
 source /opt/ros/jazzy/setup.bash
-export GZ_SIM_SYSTEM_PLUGIN_PATH=/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins:$GZ_SIM_SYSTEM_PLUGIN_PATH
+command -v gz   >/dev/null || die "'gz' (Gazebo Harmonic) not found. Install it with: sudo apt install ros-jazzy-ros-gz"
+command -v ros2 >/dev/null || die "'ros2' not found after sourcing ROS."
+PLUGDIR=/opt/ros/jazzy/opt/gz_sim_vendor/lib/gz-sim-8/plugins
+[[ -d "$PLUGDIR" ]] || die "Gazebo plugin folder missing ($PLUGDIR). Install: sudo apt install ros-jazzy-gz-sim-vendor ros-jazzy-ros-gz"
+ros2 pkg prefix ros_gz_bridge >/dev/null 2>&1 || die "ros_gz_bridge missing. Install: sudo apt install ros-jazzy-ros-gz"
+python3 - <<'PY' || die "A Python package is missing (numpy / scipy / matplotlib / tkinter / rclpy). Install: sudo apt install python3-numpy python3-scipy python3-matplotlib python3-tk"
+import numpy, scipy, matplotlib, rclpy
+PY
+
+HEADLESS=0; NODASH=0; ARGS=()
+for a in "$@"; do
+  [[ "$a" == "--headless" ]] && HEADLESS=1 || ARGS+=("$a")
+  [[ "$a" == "--no-dashboard" ]] && NODASH=1
+done
+if [[ $HEADLESS == 0 || $NODASH == 0 ]]; then
+  [[ -n "$DISPLAY$WAYLAND_DISPLAY" ]] || die "No display found (DISPLAY is empty). On Windows use Windows 11 WSL2 (WSLg); on a server run: ./run_demo.sh --headless --no-dashboard"
+  python3 -c "import tkinter" 2>/dev/null || die "tkinter missing (needed for the dashboard). Install: sudo apt install python3-tk"
+fi
+
+export GZ_SIM_SYSTEM_PLUGIN_PATH=$PLUGDIR:$GZ_SIM_SYSTEM_PLUGIN_PATH
 export GZ_SIM_RESOURCE_PATH="$HERE:$GZ_SIM_RESOURCE_PATH"
 
-HEADLESS=0; ARGS=()
-for a in "$@"; do [[ "$a" == "--headless" ]] && HEADLESS=1 || ARGS+=("$a"); done
-
 python3 generate_world.py >/dev/null || exit 1
-pkill -f "gz sim" 2>/dev/null; pkill -f parameter_bridge 2>/dev/null; sleep 1
+
+# Stop leftovers from an earlier run - a stale simulation keeps publishing to the arm and
+# makes the new run miss the cube.
+pkill -f "gz sim" 2>/dev/null; pkill -f parameter_bridge 2>/dev/null; pkill -f eog_arm_sim.py 2>/dev/null; sleep 1
 
 PIDS=()
 cleanup() { kill "${PIDS[@]}" 2>/dev/null; pkill -f "gz sim" 2>/dev/null; }
